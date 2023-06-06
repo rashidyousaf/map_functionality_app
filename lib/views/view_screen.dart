@@ -130,7 +130,7 @@ class _ViewScreenState extends State<ViewScreen>
   Widget build(BuildContext context) {
     List<dynamic> propertyType = [];
     // this combination of essentials and propertytype
-    log("widget.propetyType: ${widget.propertyType}");
+
     FirestoreService fS = FirestoreService();
     return Scaffold(
       resizeToAvoidBottomInset: false,
@@ -215,6 +215,7 @@ class _ViewScreenState extends State<ViewScreen>
                       SizedBox(
                         width: 20.w,
                       ),
+                      /**************  this typeahead section for showing place on textfiled suggestion from google api ***************/
                       SizedBox(
                         width: 300.w,
                         child: TypeAheadField(
@@ -236,7 +237,40 @@ class _ViewScreenState extends State<ViewScreen>
                             ),
                           ),
                           suggestionsCallback: (pattern) async {
-                            return _placesList;
+                            // Filter the suggestions to show only cities in Algeria
+                            List<dynamic> filteredSuggestions = [];
+                            for (var suggestion in _placesList) {
+                              var placeId = suggestion['place_id'];
+                              String kPLACES_API_KEY =
+                                  "AIzaSyClFplHsDAz86qsjXQ05yOfeX3OJvkQe4s";
+                              String baseURL =
+                                  'https://maps.googleapis.com/maps/api/place/details/json';
+                              String request =
+                                  '$baseURL?place_id=$placeId&key=$kPLACES_API_KEY';
+
+                              var response = await http.get(Uri.parse(request));
+                              if (response.statusCode == 200) {
+                                var result =
+                                    jsonDecode(response.body)['result'];
+                                var addressComponents =
+                                    result['address_components'];
+                                var countryName = addressComponents.firstWhere(
+                                    (component) =>
+                                        component['types']
+                                            .contains('country') &&
+                                        component['types']
+                                            .contains('political'),
+                                    orElse: () => {})['long_name'];
+
+                                if (countryName == 'Algeria') {
+                                  filteredSuggestions.add(suggestion);
+                                }
+                              } else {
+                                throw Exception('Failed to load data');
+                              }
+                            }
+
+                            return filteredSuggestions;
                           },
                           itemBuilder: (context, suggestion) {
                             return ListTile(
@@ -275,6 +309,7 @@ class _ViewScreenState extends State<ViewScreen>
                   SizedBox(
                     height: 5.h,
                   ),
+                  // this tabbar section
                   TabBar(
                     labelColor: Colors.black,
                     indicatorColor: Colors.amber,
@@ -309,6 +344,8 @@ class _ViewScreenState extends State<ViewScreen>
                 ],
               ),
             ),
+
+            /**************  this map section for showing data from firestore ***************/
             Expanded(
               child: SizedBox(
                 height: 635.h,
@@ -329,8 +366,6 @@ class _ViewScreenState extends State<ViewScreen>
                         propertyType
                             .removeWhere((item) => toRemove.contains(item));
 
-                        log('propertyType: ${propertyType}');
-
                         return fS.getFilteredMapData(
                             minPrice: widget.miniPrice,
                             maxPrice: widget.maxPrice,
@@ -339,7 +374,7 @@ class _ViewScreenState extends State<ViewScreen>
                             essentials: widget.essentials);
                       } else if (_tabController!.index == 1) {
                         // when on index 1, show all except Rooms
-
+                        widget.propertyType.clear();
                         List<String> toRemove = [
                           'Villas',
                           'Apartments',
@@ -350,7 +385,7 @@ class _ViewScreenState extends State<ViewScreen>
                         if (!propertyType.contains('Rooms')) {
                           propertyType.add('Rooms');
                         }
-                        log("list of properties: ${propertyType}");
+
                         return fS.getFilteredMapData(
                             minPrice: widget.miniPrice,
                             maxPrice: widget.maxPrice,
@@ -359,7 +394,7 @@ class _ViewScreenState extends State<ViewScreen>
                             essentials: widget.essentials);
                       } else if (_tabController!.index == 2) {
                         // when on index 0, show all property types
-
+                        widget.propertyType.clear();
                         List<String> toRemove = [
                           'Rooms',
                           'Apartments',
@@ -371,7 +406,6 @@ class _ViewScreenState extends State<ViewScreen>
                           propertyType.add('Villas');
                         }
 
-                        log("list of properties: ${propertyType}");
                         return fS.getFilteredMapData(
                             minPrice: widget.miniPrice,
                             maxPrice: widget.maxPrice,
@@ -379,14 +413,13 @@ class _ViewScreenState extends State<ViewScreen>
                             baths: widget.baths,
                             essentials: widget.essentials);
                       } else if (_tabController!.index == 3) {
+                        widget.propertyType.clear();
                         List<String> toRemove = ['Rooms', 'Villas', 'Hotels'];
                         propertyType
                             .removeWhere((item) => toRemove.contains(item));
                         if (!propertyType.contains('Apartments')) {
                           propertyType.add('Apartments');
                         }
-
-                        log("list of properties: ${propertyType}");
 
                         return fS.getFilteredMapData(
                             minPrice: widget.miniPrice,
@@ -395,6 +428,7 @@ class _ViewScreenState extends State<ViewScreen>
                             baths: widget.baths,
                             essentials: widget.essentials);
                       } else {
+                        widget.propertyType.clear();
                         List<String> toRemove = [
                           'Rooms',
                           'Villas',
@@ -406,7 +440,6 @@ class _ViewScreenState extends State<ViewScreen>
                           propertyType.add('Hotels');
                         }
 
-                        log("list of properties: ${propertyType}");
                         return fS.getFilteredMapData(
                             minPrice: widget.miniPrice,
                             maxPrice: widget.maxPrice,
@@ -501,10 +534,10 @@ class _ViewScreenState extends State<ViewScreen>
                                                     target: LatLng(
                                                         value.latitude,
                                                         value.longitude),
-                                                    zoom: 6),
+                                                    zoom: 10),
                                               ),
                                             );
-                                            log('clicked');
+
                                             setState(() {});
                                           });
                                         },
@@ -665,6 +698,7 @@ class _ViewScreenState extends State<ViewScreen>
   // this fuction for range slider
 
   // this fuction for getting places from api and show in typeahead package
+
   void onSuggestionSelected(dynamic suggestion) async {
     _textController.text = suggestion['description'];
     String placeId = suggestion['place_id'];
@@ -678,7 +712,8 @@ class _ViewScreenState extends State<ViewScreen>
       double lat = result['geometry']['location']['lat'];
       double lng = result['geometry']['location']['lng'];
       GoogleMapController controller = await _controller.future;
-      controller.animateCamera(CameraUpdate.newLatLngZoom(LatLng(lat, lng), 5));
+      controller
+          .animateCamera(CameraUpdate.newLatLngZoom(LatLng(lat, lng), 11));
       setState(() {});
     } else {
       throw Exception('Failed to load data');
